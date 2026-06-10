@@ -35,7 +35,7 @@ const kickTimers = new Map();
 
 http.createServer((req, res) => {
   res.writeHead(200);
-  res.end('SteveBot running');
+  res.end('Ragdoll Steve is running.');
 }).listen(process.env.PORT || 3000);
 
 async function setStatus(name) {
@@ -54,14 +54,7 @@ async function sendLog(guild, content) {
     if (!DM_LOG_CHANNEL_ID) return;
     const channel = guild.channels.cache.get(DM_LOG_CHANNEL_ID);
     if (!channel) return;
-
-    await channel.send({
-      content,
-      allowedMentions: {
-        roles: ['1077007056613150763'],
-        users: ['1463645435397668992']
-      }
-    });
+    await channel.send(content);
   } catch (err) {
     console.error('Log error:', err);
   }
@@ -135,12 +128,14 @@ client.on(Events.GuildMemberAdd, async (member) => {
     startKickTimer(member);
 
     await member.send(
-      `Welcome ${member}, before you enter, send ${VERIFY_EMOJI} or "Verify" to prove you’re actually human and not one of those weird bot accounts. You have 24 hours to verify or you will be kicked. 👋`
-    ).catch(() => {});
+      `Hello ${member}, welcome to Raphiel’s Lounge!\n\nTo get verified, reply with ${VERIFY_EMOJI} or "Verify" to gain access to the server.\n\nYou have 24 hours to verify or you will be kicked.`
+    ).catch(() => {
+      console.log(`Could not DM ${member.user.tag}.`);
+    });
 
     await sendLog(
       member.guild,
-      `<@&1077007056613150763>, be sure to check your DMs to see the message sent by <@1463645435397668992> to get verified. If you don't see it, please DM the bot "Verify" to receive the verification. Also if you don’t verify in the next 24 hours you will be kicked from the server. Thank you! 🙂`
+      `📨 Verification DM attempted for ${member.user.tag}.`
     );
   } catch (err) {
     console.error('Join error:', err);
@@ -176,9 +171,8 @@ client.on(Events.MessageCreate, async (message) => {
       }
 
       if (message.content === '!sendverifyinfo') {
-        await sendLog(
-          message.guild,
-          `<@&1077007056613150763>, be sure to check your DMs to see the message sent by <@1463645435397668992> to get verified. If you don't see it, please DM the bot "Verify" to receive the verification. Also if you don’t verify in the next 24 hours you will be kicked from the server. Thank you! 🙂`
+        await message.channel.send(
+          `Hello <@&${UNVERIFIED_ROLE_ID}>, be sure to check your DMs from ${client.user} to be verified. If you don’t get a response, just DM the bot "${VERIFY_EMOJI}" or "Verify" to gain access to the server!\n\nYou have 24 hours to verify or you will be kicked.`
         );
         await message.delete().catch(() => {});
         return;
