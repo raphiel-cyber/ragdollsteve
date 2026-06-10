@@ -24,8 +24,7 @@ const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID;
 const UNVERIFIED_ROLE_ID = process.env.UNVERIFIED_ROLE_ID;
 const DM_LOG_CHANNEL_ID = process.env.DM_LOG_CHANNEL_ID;
 const STATUS_VOICE_CHANNEL_ID = process.env.STATUS_VOICE_CHANNEL_ID;
-
-const OWNER_USER_ID = '1463645435397668992';
+const STAFF_ROLE_ID = process.env.STAFF_ROLE_ID;
 
 const VERIFY_EMOJI = '🛎️';
 const VERIFY_WORD = 'verify';
@@ -60,12 +59,17 @@ async function sendLog(guild, content) {
       content,
       allowedMentions: {
         roles: ['1077007056613150763'],
-        users: [OWNER_USER_ID]
+        users: ['1463645435397668992']
       }
     });
   } catch (err) {
     console.error('Log error:', err);
   }
+}
+
+function hasStaffRole(member) {
+  if (!member || !STAFF_ROLE_ID) return false;
+  return member.roles.cache.has(STAFF_ROLE_ID);
 }
 
 async function verifyMember(member, source = 'DM') {
@@ -147,9 +151,8 @@ client.on(Events.MessageCreate, async (message) => {
   try {
     if (message.author.bot) return;
 
-    // Owner commands in server
     if (message.guild) {
-      if (message.author.id !== OWNER_USER_ID) return;
+      if (!hasStaffRole(message.member)) return;
 
       if (message.content === '!automated') {
         verificationMode = 'automated';
@@ -184,7 +187,6 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    // DM verification
     const content = message.content.trim().toLowerCase();
 
     if (content !== VERIFY_WORD && content !== VERIFY_EMOJI) return;
