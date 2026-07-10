@@ -182,16 +182,19 @@ await message.channel.send(
   setTimeout(() => msg.delete().catch(() => {}), 15000);
 });
       
-      await sendLog(
-        message.guild,
-        `🚪 ${userTag} was kicked for typing in #${channelName}.`
-      );
+   await message.member.kick(
+  'Typed in restricted-area while unverified.'
+).catch((err) => {
+  console.error('Restricted kick error:', err);
+});
 
-      await message.member.kick('Typed in restricted-area while unverified.').catch((err) => {
-        console.error('Restricted kick error:', err);
-      });
+await sendLog(
+  message.guild,
+  `🚪 ${userTag} was kicked for typing in #${channelName}.\n📊 Total Kicked: ${restrictedKickCount}`
+);
 
-      return;
+return;
+      
     }
 
     if (message.guild) {
@@ -244,40 +247,21 @@ await message.channel.send(
         await message.reply('Verification is now offline.');
         return;
       }
+      
+if (message.content === '!sendverifyinfo') {
+  await message.channel.send(
+    `Hello <@&${UNVERIFIED_ROLE_ID}>, be sure to check your DMs from ${client.user} to be verified. If you don’t get a response, just DM the bot "${VERIFY_EMOJI}" or "Verify" to gain access to the server!\n\nYou have 24 hours to verify or you will be kicked.`
+  );
 
-      if (message.content === '!sendverifyinfo') {
-        await message.channel.send(
-          `Hello <@&${UNVERIFIED_ROLE_ID}>, be sure to check your DMs from ${client.user} to be verified. If you don’t get a response, just DM the bot "${VERIFY_EMOJI}" or "Verify" to gain access to the server!\n\nYou have 24 hours to verify or you will be kicked.`
-        );
+  await message.delete().catch(() => {});
+  return;
+}
 
-   
-      await message.delete().catch(() => {});
+return;
+}
 
-restrictedKickCount++;
-
-await message.channel.send(
-  `🚨 ${message.author} was caught texting in restricted area.\n\n📊 **Total Kicked:** ${restrictedKickCount}`
-).then((msg) => {
-  setTimeout(() => msg.delete().catch(() => {}), 15000);
-});
-
-await sendLog(
-  message.guild,
-  `🚪 ${userTag} was kicked for typing in #${channelName}.\n📊 Total Kicked: ${restrictedKickCount}`
-);
-
-await message.member.kick('Typed in restricted-area while unverified.').catch((err) => {
-  console.error('Restricted area kick error:', err);
-});
-
-        return;
-      }
-
-      return;
-    }
-
-    const content = message.content.trim().toLowerCase();
-
+const content = message.content.trim().toLowerCase();
+    
     if (content !== VERIFY_WORD && content !== VERIFY_EMOJI) return;
 
     const guild = await client.guilds.fetch(GUILD_ID);
