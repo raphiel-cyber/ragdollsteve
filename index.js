@@ -174,6 +174,14 @@ client.on(Events.MessageCreate, async (message) => {
         console.error('Restricted delete error:', err);
       });
 
+      restrictedKickCount++;
+
+await message.channel.send(
+  `🚨 ${message.author} was caught texting in restricted area.\n\n📊 **Total Kicked:** ${restrictedKickCount}`
+).then((msg) => {
+  setTimeout(() => msg.delete().catch(() => {}), 15000);
+});
+      
       await sendLog(
         message.guild,
         `🚪 ${userTag} was kicked for typing in #${channelName}.`
@@ -192,14 +200,6 @@ client.on(Events.MessageCreate, async (message) => {
         !canUseEveryone(message.member)
       ) {
         await message.delete().catch(() => {});
-
-        restrictedKickCount++;
-
-await message.channel.send(
-  `🚨 ${message.author} was caught texting in the restricted area.\n\nSteve escorted the guest out of the lounge.\n\n📊 **Total Kicked:** ${restrictedKickCount}`
-).then((msg) => {
-  setTimeout(() => msg.delete().catch(() => {}), 15000);
-});
 
         if (message.member.moderatable) {
           await message.member.timeout(
@@ -250,7 +250,26 @@ await message.channel.send(
           `Hello <@&${UNVERIFIED_ROLE_ID}>, be sure to check your DMs from ${client.user} to be verified. If you don’t get a response, just DM the bot "${VERIFY_EMOJI}" or "Verify" to gain access to the server!\n\nYou have 24 hours to verify or you will be kicked.`
         );
 
-        await message.delete().catch(() => {});
+   
+      await message.delete().catch(() => {});
+
+restrictedKickCount++;
+
+await message.channel.send(
+  `🚨 ${message.author} was caught texting in restricted area.\n\n📊 **Total Kicked:** ${restrictedKickCount}`
+).then((msg) => {
+  setTimeout(() => msg.delete().catch(() => {}), 15000);
+});
+
+await sendLog(
+  message.guild,
+  `🚪 ${userTag} was kicked for typing in #${channelName}.\n📊 Total Kicked: ${restrictedKickCount}`
+);
+
+await message.member.kick('Typed in restricted-area while unverified.').catch((err) => {
+  console.error('Restricted area kick error:', err);
+});
+
         return;
       }
 
