@@ -25,13 +25,17 @@ const UNVERIFIED_ROLE_ID = process.env.UNVERIFIED_ROLE_ID;
 const DM_LOG_CHANNEL_ID = process.env.DM_LOG_CHANNEL_ID;
 const STATUS_VOICE_CHANNEL_ID = process.env.STATUS_VOICE_CHANNEL_ID;
 const STAFF_ROLE_ID = process.env.STAFF_ROLE_ID;
+const TRUSTED_PING_ROLE_ID = process.env.TRUSTED_PING_ROLE_ID;
+const RESTRICTED_CHANNEL_ID = process.env.RESTRICTED_CHANNEL_ID;
 
 const VERIFY_EMOJI = '🛎️';
 const VERIFY_WORD = 'verify';
 const VERIFY_TIME = 24 * 60 * 60 * 1000;
+const EVERYONE_TIMEOUT = 10 * 60 * 1000;
 
 let verificationMode = 'automated';
 const kickTimers = new Map();
+let restrictedKickCount = 0;
 
 http.createServer((req, res) => {
   res.writeHead(200);
@@ -65,6 +69,11 @@ function hasStaffRole(member) {
   return member.roles.cache.has(STAFF_ROLE_ID);
 }
 
+function canUseEveryone(member) {
+  if (!member || !TRUSTED_PING_ROLE_ID) return false;
+  return member.roles.cache.has(TRUSTED_PING_ROLE_ID);
+}
+
 async function verifyMember(member, source = 'DM') {
   try {
     if (member.roles.cache.has(UNVERIFIED_ROLE_ID)) {
@@ -88,9 +97,7 @@ async function verifyMember(member, source = 'DM') {
 }
 
 function startKickTimer(member) {
-  if (kickTimers.has(member.id)) {
-    clearTimeout(kickTimers.get(member.id));
-  }
+  if (kickTimers.has(member.id)) clearTimeout(kickTimers.get(member.id));
 
   const timer = setTimeout(async () => {
     try {
@@ -102,10 +109,7 @@ function startKickTimer(member) {
         !freshMember.roles.cache.has(VERIFIED_ROLE_ID)
       ) {
         await freshMember.kick('Failed to complete server verification within 24 hours.');
-        await sendLog(
-          member.guild,
-          `⏰ ${freshMember.user.tag} was kicked for not verifying within 24 hours.`
-        );
+        await sendLog(member.guild, `⏰ ${freshMember.user.tag} was kicked for not verifying within 24 hours.`);
       }
     } catch (err) {
       console.error('Kick timer error:', err);
@@ -117,12 +121,16 @@ function startKickTimer(member) {
 
 client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}`);
+  console.log(`GUILD_ID=${GUILD_ID}`);
+  console.log(`UNVERIFIED_ROLE_ID=${UNVERIFIED_ROLE_ID}`);
+  console.log(`RESTRICTED_CHANNEL_ID=${RESTRICTED_CHANNEL_ID}`);
   await setStatus('🟢・Verification: Automated');
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
   try {
     if (member.user.bot) return;
+    if (member.guild.id !== GUILD_ID) return;
 
     await member.roles.add(UNVERIFIED_ROLE_ID).catch(() => {});
     startKickTimer(member);
@@ -133,10 +141,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
       console.log(`Could not DM ${member.user.tag}.`);
     });
 
-    await sendLog(
-      member.guild,
-      `📨 Verification DM attempted for ${member.user.tag}.`
-    );
+    await sendLog(member.guild, `📨 Verification DM attempted for ${member.user.tag}.`);
   } catch (err) {
     console.error('Join error:', err);
   }
@@ -146,7 +151,77 @@ client.on(Events.MessageCreate, async (message) => {
   try {
     if (message.author.bot) return;
 
+    if (message.guild && message.guild.id !== GUILD_ID) return;
+
     if (message.guild) {
+      console.log(
+        `MSG ${message.author.tag} | channel=${message.channel.id} | restricted=${RESTRICTED_CHANNEL_ID} | hasVisitor=${message.member.roles.cache.has(UNVERIFIED_ROLE_ID)} | isStaff=${hasStaffRole(message.member)}`
+      );
+    }
+
+    // 🚫 Restricted Area Honeypot
+    if (
+      message.guild &&
+      message.channel.id === RESTRICTED_CHANNEL_ID &&
+      message.member.roles.cache.has(UNVERIFIED_ROLE_ID)
+    ) {
+      const userTag = message.author.tag;
+      const channelName = message.channel.name;
+
+      console.log(`🔥 RESTRICTED AREA DETECTED: ${userTag}`);
+
+      await message.delete().catch((err) => {
+        console.error('Restricted delete error:', err);
+      });
+
+      await sendLog(
+        message.guild,
+        `🚪 ${userTag} was kicked for typing in #${channelName}.`
+      );
+
+      await message.member.kick('Typed in restricted-area while unverified.').catch((err) => {
+        console.error('Restricted kick error:', err);
+      });
+
+      return;
+    }
+
+    if (message.guild) {
+      if (
+        (message.content.includes('@everyone') || message.content.includes('@here')) &&
+        !canUseEveryone(message.member)
+      ) {
+        await message.delete().catch(() => {});
+
+        restrictedKickCount++;
+
+await message.channel.send(
+  `🚨 ${message.author} was caught texting in the restricted area.\n\nSteve escorted the guest out of the lounge.\n\n📊 **Total Kicked:** ${restrictedKickCount}`
+).then((msg) => {
+  setTimeout(() => msg.delete().catch(() => {}), 15000);
+});
+
+        if (message.member.moderatable) {
+          await message.member.timeout(
+            EVERYONE_TIMEOUT,
+            'Unauthorized @everyone/@here ping.'
+          ).catch(() => {});
+        }
+
+        await message.channel.send(
+          `*Steve looks at ${message.author} suspiciously.*\n\nSteve timed out the guest for safety.`
+        ).then((msg) => {
+          setTimeout(() => msg.delete().catch(() => {}), 10000);
+        });
+
+        await sendLog(
+          message.guild,
+          `🚨 ${message.author} was timed out for 10 minutes for unauthorized @everyone/@here usage.`
+        );
+
+        return;
+      }
+
       if (!hasStaffRole(message.member)) return;
 
       if (message.content === '!automated') {
@@ -174,6 +249,7 @@ client.on(Events.MessageCreate, async (message) => {
         await message.channel.send(
           `Hello <@&${UNVERIFIED_ROLE_ID}>, be sure to check your DMs from ${client.user} to be verified. If you don’t get a response, just DM the bot "${VERIFY_EMOJI}" or "Verify" to gain access to the server!\n\nYou have 24 hours to verify or you will be kicked.`
         );
+
         await message.delete().catch(() => {});
         return;
       }
